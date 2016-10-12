@@ -18,14 +18,14 @@
 
 package com.cybersource.ws.client;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import org.junit.Test;
 
 
 /**
@@ -38,7 +38,7 @@ public class ClientIT extends BaseTest {
    // Test case takes the Transaction Data and Merchant Properties details are given as input.
     @Test
     public void testRunTransaction() throws Exception {
-    	
+        org.apache.xml.security.Init.init();
     	// Transaction Data
         HashMap<String, String> requestMap = new HashMap<String, String>();
         requestMap.put("ccAuthService_run", "true");

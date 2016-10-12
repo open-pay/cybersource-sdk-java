@@ -55,6 +55,7 @@ public class ApacheWssjSignatureIT {
     
     @Before
     public void setup() throws Exception{
+        org.apache.xml.security.Init.init();
     	requestMap = new HashMap<String, String>();
         requestMap.put("ccAuthService_run", "true");
         requestMap.put("merchantReferenceCode", "your_reference_code");

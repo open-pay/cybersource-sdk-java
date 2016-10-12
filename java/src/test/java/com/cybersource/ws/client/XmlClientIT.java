@@ -40,6 +40,7 @@ public class XmlClientIT {
      */
     @Test
     public void testRunTransaction() throws Exception {
+        org.apache.xml.security.Init.init();
     	Properties merchantProperties = new Properties();
     	//Loading the properties file from src/test/resources
         InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("test_cybs.properties");

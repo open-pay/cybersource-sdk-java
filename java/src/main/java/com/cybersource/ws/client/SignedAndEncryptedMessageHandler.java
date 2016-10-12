@@ -1,14 +1,5 @@
 package com.cybersource.ws.client;
 
-import org.apache.ws.security.WSConstants;
-import org.apache.ws.security.WSEncryptionPart;
-import org.apache.ws.security.WSSecurityException;
-import org.apache.ws.security.message.WSSecEncrypt;
-import org.apache.ws.security.message.WSSecHeader;
-import org.apache.ws.security.message.WSSecSignature;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.w3c.dom.Document;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
@@ -22,6 +13,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+
+import org.apache.wss4j.common.WSEncryptionPart;
+import org.apache.wss4j.common.ext.WSSecurityException;
+import org.apache.wss4j.dom.WSConstants;
+import org.apache.wss4j.dom.message.WSSecEncrypt;
+import org.apache.wss4j.dom.message.WSSecHeader;
+import org.apache.wss4j.dom.message.WSSecSignature;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.w3c.dom.Document;
 
 
 /**
@@ -154,9 +154,9 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
             throw new SignEncryptException("SignedAndEncryptedMessageHandler - handleMessageCreation," +
                     " senderAlias is null");
 
-	    WSSecHeader secHeader = new WSSecHeader();
+	    WSSecHeader secHeader = new WSSecHeader(workingDocument);
 	    try {
-	      secHeader.insertSecurityHeader(workingDocument);
+	      secHeader.insertSecurityHeader();
 	    } catch (WSSecurityException e) {
 	        logger.log(Logger.LT_EXCEPTION, "Exception while adding docuemnt in soap securiy header for MLE");
 	        throw new SignException(e);
@@ -202,8 +202,8 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
 		
 		if(secHeader==null){
 			try {
-        	secHeader = new WSSecHeader();
-        	secHeader.insertSecurityHeader(workingDocument);
+        	secHeader = new WSSecHeader(workingDocument);
+        	secHeader.insertSecurityHeader();
 			} catch (WSSecurityException e) {
 	            logger.log(Logger.LT_EXCEPTION, "Exception while signing XML document");
 	            throw new SignException(e);
@@ -218,7 +218,7 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
 	    
 	    //Set which parts of the message to encrypt/sign.
 	    WSEncryptionPart msgBodyPart = new WSEncryptionPart(WSConstants.ELEM_BODY, WSConstants.URI_SOAP11_ENV, "");
-	    sign.setParts(Collections.singletonList(msgBodyPart));
+        sign.getParts().addAll(Collections.singletonList(msgBodyPart));
 		try {
 	        return sign.build(workingDocument, localKeyStoreHandler, secHeader);
 		} catch (WSSecurityException e) {
