@@ -20,7 +20,7 @@
         <version>7</version>
     </parent>
 
-    <groupId>com.cybersource</groupId>
+    <groupId>mx.openpay</groupId>
     <artifactId>cybersource-sdk-master</artifactId>
     <version>6.2.2</version>
 
