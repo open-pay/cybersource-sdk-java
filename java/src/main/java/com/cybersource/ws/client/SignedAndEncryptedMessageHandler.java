@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 
-
 import org.apache.wss4j.common.WSEncryptionPart;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
@@ -102,7 +101,7 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
         FileInputStream stream = null;
         try {
             if(merchantConfig.getKeySupplier() != null){
-                tempFile = merchantConfig.getKeySupplier().get();
+                tempFile = merchantConfig.getKeySupplier().getFile();
                 stream = new FileInputStream(tempFile);
                 merchantKeyStore.load(stream, merchantConfig.getKeyPassword().toCharArray());
             } else {
@@ -128,7 +127,7 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
                     // Ignore
                 }
             }
-            if(tempFile != null && merchantConfig.isKeyFileTemporary()){
+            if(tempFile != null && merchantConfig.getKeySupplier().isTemporary()){
                 tempFile.deleteOnExit();
                 tempFile.delete();
             }

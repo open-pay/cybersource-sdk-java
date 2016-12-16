@@ -88,6 +88,29 @@ public class Client {
             Map<String, String> request, Properties props,
             Logger _logger, boolean prepare, boolean logTranStart)
             throws FaultException, ClientException {
+                return runTransaction(request, props, _logger, prepare, logTranStart, null);
+            }
+
+    /**
+     * Runs a transaction.
+     *
+     * @param request      request to send.
+     * @param props        properties the client needs to run the transaction.
+     *                     See README for more information.
+     * @param _logger      Logger object to used for logging.
+     * @param prepare      Flag as to whether or not the logger's
+     *                     prepare() method should be called.
+     * @param logTranStart Flag as to whether or not the logger's
+     *                     logTransactionStart() method should be called.
+     * @param fileSupplier TODO
+     * @throws FaultException  if a fault occurs.
+     * @throws ClientException if any other exception occurs.
+     */
+    public static Map runTransaction(
+            Map<String, String> request, Properties props,
+            Logger _logger, boolean prepare, boolean logTranStart, 
+            KeyFileLoader fileSupplier)
+            throws FaultException, ClientException {
         MerchantConfig mc;
         LoggerWrapper logger = null;
         Connection con = null;
@@ -105,6 +128,7 @@ public class Client {
             } else {
                 mc = new MerchantConfig(props, merchantID);
             }
+            mc.setKeySupplier(fileSupplier);
 
             logger = new LoggerWrapper(_logger, prepare, logTranStart, mc);
 

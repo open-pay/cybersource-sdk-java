@@ -144,6 +144,28 @@ public class XMLClient {
             Document request, Properties props,
             Logger _logger, boolean prepare, boolean logTranStart)
             throws FaultException, ClientException {
+                return runTransaction(request, props, _logger, prepare, logTranStart, null);
+            }
+
+    /**
+     * Runs a transaction.
+     *
+     * @param request      request to send.
+     * @param props        properties the client needs to run the transaction.
+     *                     See README for more information.
+     * @param _logger      Logger object to used for logging.
+     * @param prepare      Flag as to whether or not the logger's
+     *                     prepare() method should be called.
+     * @param logTranStart Flag as to whether or not the logger's
+     *                     logTransactionStart() method should be called.
+     * @param keySupplier TODO
+     * @throws FaultException  if a fault occurs.
+     * @throws ClientException if any other exception occurs.
+     */
+    public static Document runTransaction(
+            Document request, Properties props,
+            Logger _logger, boolean prepare, boolean logTranStart, KeyFileLoader keySupplier)
+            throws FaultException, ClientException {
         if (initException != null) {
             throw new ClientException(initException, false, null);
         }
@@ -171,6 +193,7 @@ public class XMLClient {
                 mc = new MerchantConfig(props, merchantID);
                 nsURI = mc.getEffectiveNamespaceURI();
             }
+            mc.setKeySupplier(keySupplier);
 
             logger = new LoggerWrapper(_logger, prepare, logTranStart, mc);
 
