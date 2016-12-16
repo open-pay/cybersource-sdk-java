@@ -66,8 +66,23 @@ public class Client {
      */
     public static Map runTransaction(Map<String,String> request, Properties props)
             throws FaultException, ClientException {
+                return runTransaction(request, props, null);
+            }
+
+    /**
+     * Runs a transaction.
+     *
+     * @param request request to send.
+     * @param props   properties the client needs to run the transaction.
+     *                See README for more information.
+     * @param fileLoader TODO
+     * @throws FaultException  if a fault occurs.
+     * @throws ClientException if any other exception occurs.
+     */
+    public static Map runTransaction(Map<String,String> request, Properties props, KeyFileLoader fileLoader)
+            throws FaultException, ClientException {
         return (runTransaction(
-                request, props, null, true, true));
+                request, props, null, true, true, fileLoader));
     }
 
     /**

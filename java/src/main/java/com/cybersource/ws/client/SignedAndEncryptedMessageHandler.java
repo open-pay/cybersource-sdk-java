@@ -101,9 +101,13 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
         FileInputStream stream = null;
         try {
             if(merchantConfig.getKeySupplier() != null){
-                tempFile = merchantConfig.getKeySupplier().getFile();
-                stream = new FileInputStream(tempFile);
-                merchantKeyStore.load(stream, merchantConfig.getKeyPassword().toCharArray());
+                tempFile = merchantConfig.getKeySupplier().getFile(merchantConfig.getKeyFilename());
+                if(tempFile == null){
+                    merchantKeyStore.load(new FileInputStream(merchantConfig.getKeyFile()), merchantConfig.getKeyPassword().toCharArray());
+                }else{
+                    stream = new FileInputStream(tempFile);
+                    merchantKeyStore.load(stream, merchantConfig.getKeyPassword().toCharArray());
+                }
             } else {
                 merchantKeyStore.load(new FileInputStream(merchantConfig.getKeyFile()), merchantConfig.getKeyPassword().toCharArray());
             }

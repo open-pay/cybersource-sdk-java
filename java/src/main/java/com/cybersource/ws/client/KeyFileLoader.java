@@ -6,6 +6,6 @@ public interface KeyFileLoader {
 
     boolean isTemporary();
 
-    File getFile();
+    File getFile(String filename);
 
 }
