@@ -21,6 +21,7 @@ package com.cybersource.ws.client;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.Properties;
+import java.util.function.Supplier;
 
 /**
  * An internal class used by the clients to hold and derive the properties
@@ -41,6 +42,8 @@ public class MerchantConfig {
     private String keysDirectory;
     private String keyAlias;
     private String keyPassword;
+    private Supplier<File> keySupplier;
+    private boolean isKeyFileTemporary;
     private boolean sendToProduction;
     private boolean sendToAkamai;
     private String targetAPIVersion;
@@ -89,6 +92,22 @@ public class MerchantConfig {
           return keyPassword;
         else
           return getMerchantID();
+    }
+    
+    public Supplier<File> getKeySupplier() {
+        return this.keySupplier;
+    }
+
+    public void setKeySupplier(Supplier<File> keyDownloader) {
+        this.keySupplier = keyDownloader;
+    }
+    
+    public boolean isKeyFileTemporary() {
+        return this.isKeyFileTemporary;
+    }
+    
+    public void setKeyFileTemporary(boolean isKeyFileTemporary) {
+        this.isKeyFileTemporary = isKeyFileTemporary;
     }
 
     public boolean getSendToProduction() {

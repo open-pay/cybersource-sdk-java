@@ -1,5 +1,6 @@
 package com.cybersource.ws.client;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+
 
 import org.apache.wss4j.common.WSEncryptionPart;
 import org.apache.wss4j.common.ext.WSSecurityException;
@@ -95,8 +97,17 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
             throw new SignException(e);
         }
 		
+        
+        File tempFile = null;
+        FileInputStream stream = null;
         try {
-            merchantKeyStore.load(new FileInputStream(merchantConfig.getKeyFile()), merchantConfig.getKeyPassword().toCharArray());
+            if(merchantConfig.getKeySupplier() != null){
+                tempFile = merchantConfig.getKeySupplier().get();
+                stream = new FileInputStream(tempFile);
+                merchantKeyStore.load(stream, merchantConfig.getKeyPassword().toCharArray());
+            } else {
+                merchantKeyStore.load(new FileInputStream(merchantConfig.getKeyFile()), merchantConfig.getKeyPassword().toCharArray());
+            }
         } catch (IOException e) {
             logger.log(Logger.LT_EXCEPTION, "Exception while loading KeyStore, '" + merchantConfig.getKeyFilename() + "'");
             throw new SignException(e);
@@ -109,6 +120,18 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
         } catch (ConfigException e) {
             logger.log(Logger.LT_EXCEPTION, "Exception while loading KeyStore, '" + merchantConfig.getKeyFilename() + "'");
             throw new SignException(e);
+        }finally{
+            if(stream != null){
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+            if(tempFile != null && merchantConfig.isKeyFileTemporary()){
+                tempFile.deleteOnExit();
+                tempFile.delete();
+            }
         }
         
      // our p12 files do not contain an alias as a normal name, its the common name and serial number
