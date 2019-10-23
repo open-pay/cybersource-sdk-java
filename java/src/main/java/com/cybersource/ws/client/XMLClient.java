@@ -18,10 +18,10 @@
 
 package com.cybersource.ws.client;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.Properties;
+import org.apache.ws.security.util.XMLUtils;
+import org.w3c.dom.*;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
@@ -32,13 +32,11 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.apache.wss4j.common.util.XMLUtils;
-import org.w3c.dom.Document;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Properties;
 
 /**
  * Class containing runTransaction() methods that accept the requests in the
@@ -67,7 +65,8 @@ public class XMLClient {
 
     private static Document soapEnvelope;
     private static Exception initException = null;
-    
+
+
     static {
         try {
             // load the SOAP envelope document.
@@ -140,31 +139,10 @@ public class XMLClient {
      * @throws FaultException  if a fault occurs.
      * @throws ClientException if any other exception occurs.
      */
-    public static Document runTransaction(
+    @SuppressWarnings("unchecked")
+	public static Document runTransaction(
             Document request, Properties props,
             Logger _logger, boolean prepare, boolean logTranStart)
-            throws FaultException, ClientException {
-                return runTransaction(request, props, _logger, prepare, logTranStart, null);
-            }
-
-    /**
-     * Runs a transaction.
-     *
-     * @param request      request to send.
-     * @param props        properties the client needs to run the transaction.
-     *                     See README for more information.
-     * @param _logger      Logger object to used for logging.
-     * @param prepare      Flag as to whether or not the logger's
-     *                     prepare() method should be called.
-     * @param logTranStart Flag as to whether or not the logger's
-     *                     logTransactionStart() method should be called.
-     * @param keySupplier TODO
-     * @throws FaultException  if a fault occurs.
-     * @throws ClientException if any other exception occurs.
-     */
-    public static Document runTransaction(
-            Document request, Properties props,
-            Logger _logger, boolean prepare, boolean logTranStart, KeyFileLoader keySupplier)
             throws FaultException, ClientException {
         if (initException != null) {
             throw new ClientException(initException, false, null);
@@ -193,7 +171,6 @@ public class XMLClient {
                 mc = new MerchantConfig(props, merchantID);
                 nsURI = mc.getEffectiveNamespaceURI();
             }
-            mc.setKeySupplier(keySupplier);
 
             logger = new LoggerWrapper(_logger, prepare, logTranStart, mc);
 
@@ -203,11 +180,45 @@ public class XMLClient {
 
             Document signedDoc
                     = soapWrapAndSign(request, mc, builder, logger);
+            if(mc.isCustomHttpClassEnabled()){
+				Class<Connection> customConnectionClass;
+				try {
+					customConnectionClass = (Class<Connection>) Class.forName(mc.getcustomHttpClass());
+					Class[] constructor_Args = new Class[] {com.cybersource.ws.client.MerchantConfig.class, javax.xml.parsers.DocumentBuilder.class, com.cybersource.ws.client.LoggerWrapper.class}; 
+					con=customConnectionClass.getDeclaredConstructor(constructor_Args).newInstance(mc, builder, logger);
 
-            con = Connection.getInstance(mc, builder, logger);
+				} catch (InstantiationException e) {
+					logger.log(Logger.LT_INFO, "Failed to Instantiate the class "+e);
+					throw new ClientException(e, false, null);
+				} catch (IllegalAccessException e) {
+					logger.log(Logger.LT_INFO, "Could not Access the method invoked "+e);
+					throw new ClientException(e, false, null);
+				} catch (ClassNotFoundException e) {
+					logger.log(Logger.LT_INFO, "Could not load the custom HTTP class ");
+					throw new ClientException(e, false, null);
+				} catch (IllegalArgumentException e) {
+					logger.log(Logger.LT_INFO, "Method invoked with Illegal Argument list  "+e);
+					throw new ClientException(e, false, null);
+				} catch (SecurityException e) {
+					logger.log(Logger.LT_INFO, "Security Exception "+e);
+					throw new ClientException(e, false, null);
+				} catch (InvocationTargetException e) {
+					logger.log(Logger.LT_INFO, "Exception occured while calling the method "+e);
+					throw new ClientException(e, false, null);
+				} catch (NoSuchMethodException e) {
+					logger.log(Logger.LT_INFO, "Method not found ");
+					throw new ClientException(e, false, null);
+				}    	
+            }
+            else{
+            	con = Connection.getInstance(mc, builder, logger);
+            }
             Document wrappedReply = con.post(signedDoc);
 
-            return (soapUnwrap(wrappedReply, mc, builder, logger));
+            Document doc = soapUnwrap(wrappedReply, mc, builder, logger);
+            logger.log(Logger.LT_INFO, "Client, End of runTransaction Call   ", false);
+            
+            return doc;
         } catch (ParserConfigurationException e) {
             throw new ClientException(
                     e, con != null && con.isRequestSent(), logger);
@@ -344,19 +355,49 @@ public class XMLClient {
      * @return signed document.
      * @throws SignException if signing fails.
      * @throws SignEncryptException 
+     * @throws ConfigException 
      */
     private static Document soapWrapAndSign(
             Document doc, MerchantConfig mc, DocumentBuilder builder,
             LoggerWrapper logger)
-            throws SignException, SignEncryptException {
-        boolean logSignedData = mc.getLogSignedData();
-
-        if (!logSignedData) {
+            throws SignException, SignEncryptException, ConfigException {
+    	boolean logSignedData = mc.getLogSignedData();
+        
+    	if (!logSignedData) {
             logger.log(Logger.LT_REQUEST,
-                    Utility.nodeToString(doc, PCI.REQUEST));
+            		"UUID   >  "+(mc.getUniqueKey()).toString() + "\n" +
+            		"Input request is" + "\n" +
+            		"======================================= \n"
+                    + Utility.nodeToString(doc, PCI.REQUEST));
         }
 
-        // look for the requestMessage element
+        Document wrappedDoc = soapWrap(doc, mc, builder, logger);
+        logger.log(Logger.LT_INFO, "Client, End of soapWrap   ",true); 
+        
+        Document resultDocument = null;
+        
+        SecurityUtil.loadMerchantP12File(mc,logger);
+        logger.log(Logger.LT_INFO, "Client, End of loading Merchant Certificate   ", true);       
+        
+        // sign Document object
+        resultDocument = SecurityUtil.createSignedDoc(wrappedDoc,mc.getMerchantID(),mc.getKeyPassword(),logger);
+        logger.log(Logger.LT_INFO, "Client, End of createSignedDoc   ", true);
+
+        if ( mc.getUseSignAndEncrypted() ) {
+        	// Encrypt signed Document
+            resultDocument = SecurityUtil.handleMessageCreation(resultDocument , mc.getMerchantID() , logger);
+            logger.log(Logger.LT_INFO, "Client, End of handleMessageCreation   ", true);
+        }
+        if (logSignedData) {
+           logger.log(Logger.LT_REQUEST,Utility.nodeToString(resultDocument, PCI.REQUEST));
+        	//logger.log(Logger.LT_REQUEST,XMLUtils.PrettyDocumentToString(resultDocument));
+        }
+
+        return resultDocument ;
+    }
+
+    private static Document soapWrap(Document doc, MerchantConfig mc, DocumentBuilder builder, LoggerWrapper logger) throws SignException{
+    	// look for the requestMessage element
         Element requestMessage
                 = Utility.getElement(
                 doc, ELEM_REQUEST_MESSAGE, mc.getEffectiveNamespaceURI());
@@ -372,51 +413,9 @@ public class XMLClient {
             wrappedDoc.getFirstChild().getFirstChild().appendChild(
                     wrappedDoc.importNode(requestMessage, true));
         }
-
-        String xmlDocString = "";
-        try {
-            xmlDocString = documentToString(wrappedDoc);
-        } catch (TransformerConfigurationException e) {
-            logger.log(Logger.LT_EXCEPTION, "Exception while importing xml request document");
-            throw new SignException(e);
-        } catch (TransformerException e) {
-            logger.log(Logger.LT_EXCEPTION, "Exception while importing xml request document");
-            throw new SignException(e);
-        } catch (IOException e) {
-            logger.log(Logger.LT_EXCEPTION, "Exception while importing xml request document");
-            throw new SignException(e);
-        }
-
-        Document resultDocument = null;
-        SignedAndEncryptedMessageHandler handler = SignedAndEncryptedMessageHandler.getInstance(mc,logger);
         
-        // 3/7/2016 change to support encrypted messages as well as signed - jeaton
-        if ( !mc.getUseSignAndEncrypted() ) {
-        	// sign wrapped Document object
-            logger.log(Logger.LT_INFO, "Signing request...");
-            resultDocument = handler.createSignedDoc(wrappedDoc,mc.getMerchantID(),mc.getKeyPassword(),null);
-            if (logSignedData) {
-                logger.log(Logger.LT_REQUEST,
-                        Utility.nodeToString(resultDocument, PCI.REQUEST));
-            }
-        } else {
-        	// sign and encrypt wrapped Document object
-            logger.log(Logger.LT_INFO, "Signing and encrypting request...");
-            resultDocument = handler.handleMessageCreation(wrappedDoc,mc.getMerchantID(),mc.getKeyPassword());
-            if (logSignedData) {
-                try {
-                    logger.log(Logger.LT_REQUEST,XMLUtils.prettyDocumentToString(resultDocument));
-                } catch (TransformerException e) {
-                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
-                } catch (IOException e) {
-                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
-                }
-            }
-        }
-        
-        return resultDocument;
+        return wrappedDoc;
     }
-
 
     private static String documentToString(Document doc)
             throws TransformerConfigurationException, TransformerException,

@@ -19,10 +19,25 @@
 package com.cybersource.ws.client;
 
 
+import org.apache.ws.security.util.XMLUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.Text;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.ParserConfigurationException;
+
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
+import java.security.KeyStore;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
 import java.text.MessageFormat;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 
@@ -99,7 +114,8 @@ public class Client {
      * @throws FaultException  if a fault occurs.
      * @throws ClientException if any other exception occurs.
      */
-    public static Map runTransaction(
+    @SuppressWarnings("unchecked")
+	public static Map runTransaction(
             Map<String, String> request, Properties props,
             Logger _logger, boolean prepare, boolean logTranStart)
             throws FaultException, ClientException {
@@ -130,6 +146,7 @@ public class Client {
         LoggerWrapper logger = null;
         Connection con = null;
 
+
         try {
             setVersionInformation(request);
 
@@ -155,11 +172,44 @@ public class Client {
 //          FileWriter writer = new FileWriter(new File("signedDoc.xml"));
 //          writer.write(XMLUtils.PrettyDocumentToString(signedDoc));
 //          writer.close();
-            
-            con = Connection.getInstance(mc, builder, logger);
-            Document wrappedReply = con.post(signedDoc);
+            if(mc.isCustomHttpClassEnabled()){
+				Class<Connection> customConnectionClass;
+				try {
+					customConnectionClass = (Class<Connection>) Class.forName(mc.getcustomHttpClass());
+					Class[] constructor_Args = new Class[] {com.cybersource.ws.client.MerchantConfig.class, javax.xml.parsers.DocumentBuilder.class, com.cybersource.ws.client.LoggerWrapper.class}; 
+					con=customConnectionClass.getDeclaredConstructor(constructor_Args).newInstance(mc, builder, logger);
 
-            return (soapUnwrap(wrappedReply, mc, logger));
+				} catch (InstantiationException e) {
+					logger.log(Logger.LT_INFO, "Failed to Instantiate the class "+e);
+					throw new ClientException(e, false, null);
+				} catch (IllegalAccessException e) {
+					logger.log(Logger.LT_INFO, "Could not Access the method invoked "+e);
+					throw new ClientException(e, false, null);
+				} catch (ClassNotFoundException e) {
+					logger.log(Logger.LT_INFO, "Could not load the custom HTTP class ");
+					throw new ClientException(e, false, null);
+				} catch (IllegalArgumentException e) {
+					logger.log(Logger.LT_INFO, "Method invoked with Illegal Argument list  "+e);
+					throw new ClientException(e, false, null);
+				} catch (SecurityException e) {
+					logger.log(Logger.LT_INFO, "Security Exception "+e);
+					throw new ClientException(e, false, null);
+				} catch (InvocationTargetException e) {
+					logger.log(Logger.LT_INFO, "Exception occured while calling the method "+e);
+					throw new ClientException(e, false, null);
+				} catch (NoSuchMethodException e) {
+					logger.log(Logger.LT_INFO, "Method not found ");
+					throw new ClientException(e, false, null);
+				}  	
+            }
+            else{
+            	con = Connection.getInstance(mc, builder, logger);
+            }
+            Document wrappedReply = con.post(signedDoc);
+            Map<String, String> replyMap = soapUnwrap(wrappedReply, mc, logger);
+            logger.log(Logger.LT_INFO, "Client, End of runTransaction Call   ",false);
+            
+            return replyMap;
         } catch (IOException e) {
             throw new ClientException(
                     e, con != null && con.isRequestSent(), logger);
@@ -209,31 +259,27 @@ public class Client {
      * @throws SignException if signing fails.
      * @throws SAXException 
      * @throws SignEncryptException 
+     * @throws ConfigException 
      */
     private static Document soapWrapAndSign(
             Map request, MerchantConfig mc, DocumentBuilder builder,
             LoggerWrapper logger)
             throws
-            IOException, SignException, SAXException, SignEncryptException {
+            IOException, SignException, SAXException, SignEncryptException, ConfigException {
         boolean logSignedData = mc.getLogSignedData();
         if (!logSignedData) {
             logger.log(
-                    Logger.LT_REQUEST,
-                    mapToString(request, true, PCI.REQUEST));
+            		Logger.LT_REQUEST,
+            		"UUID   >  "+(mc.getUniqueKey()).toString() + "\n" +
+            		"Input request is" + "\n" +
+            		"======================================= \n"
+            		+ mapToString(request, true, PCI.REQUEST));
         }
-
-        // wrap in SOAP envelope
-        Object[] arguments
-                = {mc.getEffectiveNamespaceURI(),
-                mapToString(request, false, PCI.REQUEST)};
-        String xmlString = MessageFormat.format(SOAP_ENVELOPE1, arguments);
-     // load XML string into a Document object
-        StringReader sr = new StringReader( xmlString );
-        Document wrappedDoc = builder.parse( new InputSource( sr ) );
-        sr.close();
-
+        
+        Document wrappedDoc = soapWrap(request, mc, builder,logger);
+        logger.log(Logger.LT_INFO, "Client, End of soapWrap   ",true); 
+        
         Document resultDocument = null;
-        SignedAndEncryptedMessageHandler handler = SignedAndEncryptedMessageHandler.getInstance(mc,logger);
         
         // 3/7/2016 change to support encrypted messages as well as signed - jeaton
         if ( !mc.getUseSignAndEncrypted() ) {
@@ -248,21 +294,26 @@ public class Client {
             logger.log(Logger.LT_INFO, "Signing and encrypting request...");
             resultDocument = handler.handleMessageCreation(wrappedDoc,mc.getMerchantID(),mc.getKeyPassword());
             if (logSignedData) {
-                try {
-                    logger.log(Logger.LT_REQUEST,XMLUtils.prettyDocumentToString(resultDocument));
-                } catch (TransformerException e) {
-                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
-                } catch (IOException e) {
-                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
-                }
+                logger.log(Logger.LT_REQUEST,XMLUtils.PrettyDocumentToString(resultDocument));
             }
         }
-        
-        //System.out.println(XMLUtils.PrettyDocumentToString(resultDocument));
+
         return resultDocument ;
     }
 
-
+    private static Document soapWrap(Map request, MerchantConfig mc, DocumentBuilder builder, LoggerWrapper logger) throws SAXException, IOException{
+    	// wrap in SOAP envelope
+        Object[] arguments
+                = {mc.getEffectiveNamespaceURI(),
+                mapToString(request, false, PCI.REQUEST)};
+        String xmlString = MessageFormat.format(SOAP_ENVELOPE1, arguments);
+        // load XML string into a Document object
+        StringReader sr = new StringReader( xmlString );
+        Document wrappedDoc = builder.parse( new InputSource( sr ) );
+        sr.close(); 
+        return wrappedDoc;
+    }
+    
     /**
      * Extracts the content of the SOAP body from the given Document object
      * inside a SOAP envelope.
