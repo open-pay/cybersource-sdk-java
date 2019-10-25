@@ -20,8 +20,11 @@ package com.cybersource.ws.client;
 
 import java.io.File;
 import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+
 import org.apache.commons.lang3.StringUtils;
 /**
  * An internal class used by the clients to hold and derive the properties
@@ -43,6 +46,7 @@ public class MerchantConfig {
     private String keysDirectory;
     private String keyAlias;
     private String keyPassword;
+    private KeyFileLoader keySupplier;
     private boolean sendToProduction;
     private boolean sendToAkamai;
     private String targetAPIVersion;
@@ -84,6 +88,8 @@ public class MerchantConfig {
     private int numberOfRetries = 0;
     private long retryInterval  = 0;
     private boolean allowRetry=true;
+    
+    private Map<String, Long> lastModifiedFiles = new HashMap<>(); 
 
     // getter methods
     public boolean getUseSignAndEncrypted() { return useSignAndEncrypted; }
@@ -111,6 +117,18 @@ public class MerchantConfig {
             return getMerchantID();
     }
     
+    public KeyFileLoader getKeySupplier() {
+        return this.keySupplier;
+    }
+    
+    public Map<String, Long> getLastModifiedFiles() {
+        return lastModifiedFiles;
+    }
+
+    public void setKeySupplier(KeyFileLoader keyDownloader) {
+        this.keySupplier = keyDownloader;
+    }
+
     public boolean getSendToProduction() {
         return sendToProduction;
     }
@@ -348,25 +366,24 @@ public class MerchantConfig {
      *                         not readable.
      */
     public File getKeyFile()
-    throws ConfigException {
+            throws ConfigException {
         File file;
-    	if (StringUtils.isBlank(keyFilename)) {
-    		 file = new File(keysDirectory,merchantID + ".p12");
-    	}
-    	else {
-    		file = new File(keysDirectory,keyFilename);
-    	}
+        if (StringUtils.isBlank(keyFilename)) {
+            file = new File(keysDirectory, merchantID + ".p12");
+        } else {
+            file = new File(keysDirectory, keyFilename);
+        }
         String fullPath = file.getAbsolutePath();
         if (!file.isFile()) {
-             throw new ConfigException(
-                     "The file \"" + fullPath + "\" is missing or is not a file.");
-         } 
+            throw new ConfigException(
+                    "The file \"" + fullPath + "\" is missing or is not a file.");
+        }
         if (!file.canRead()) {
             throw new ConfigException(
-                                      "This application does not have permission to read the file \""
-                                      + fullPath + "\".");
+                    "This application does not have permission to read the file \""
+                            + fullPath + "\".");
         }
-        
+
         return (file);
     }
     

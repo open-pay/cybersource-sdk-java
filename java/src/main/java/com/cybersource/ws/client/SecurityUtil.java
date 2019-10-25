@@ -1,16 +1,5 @@
 package com.cybersource.ws.client;
 
-import org.apache.ws.security.WSConstants;
-import org.apache.ws.security.WSEncryptionPart;
-import org.apache.ws.security.WSSecurityException;
-import org.apache.ws.security.components.crypto.CredentialException;
-import org.apache.ws.security.message.WSSecEncrypt;
-import org.apache.ws.security.message.WSSecHeader;
-import org.apache.ws.security.message.WSSecSignature;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.w3c.dom.Document;
-
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -26,6 +15,17 @@ import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.security.auth.login.CredentialException;
+
+import org.apache.wss4j.common.WSEncryptionPart;
+import org.apache.wss4j.common.ext.WSSecurityException;
+import org.apache.wss4j.dom.WSConstants;
+import org.apache.wss4j.dom.message.WSSecEncrypt;
+import org.apache.wss4j.dom.message.WSSecHeader;
+import org.apache.wss4j.dom.message.WSSecSignature;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.w3c.dom.Document;
 
 
 
@@ -47,6 +47,8 @@ public class SecurityUtil {
     
     private static BouncyCastleProvider bcProvider = new BouncyCastleProvider();
     
+    public static Logger logger = null;
+    
     // This is loaded by WSS4J but since we use it lets make sure its here
     static {
         Security.addProvider(bcProvider);
@@ -57,10 +59,10 @@ public class SecurityUtil {
         }
     }
     
-    private static void initKeystore() throws KeyStoreException, CredentialException, IOException, NoSuchAlgorithmException, CertificateException{
+    private static void initKeystore() throws KeyStoreException, CredentialException, IOException, NoSuchAlgorithmException, CertificateException, WSSecurityException {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
-        localKeyStoreHandler = new MessageHandlerKeyStore();
+        localKeyStoreHandler = new MessageHandlerKeyStore(logger);
         localKeyStoreHandler.setKeyStore(keyStore);
     }
     
@@ -80,7 +82,7 @@ public class SecurityUtil {
      * @throws SignEncryptException
      * @throws ConfigException
      */
-    public static void loadMerchantP12File(MerchantConfig merchantConfig, Logger logger) throws SignException, SignEncryptException, ConfigException {
+    public static void loadMerchantP12File(MerchantConfig merchantConfig) throws SignException, SignEncryptException, ConfigException {
                
         Identity identity=identities.get(merchantConfig.getMerchantID());
         if(!merchantConfig.isCertificateCacheEnabled() || identity == null || !(identity.isValid(merchantConfig.getKeyFile()))){
@@ -165,12 +167,12 @@ public class SecurityUtil {
                     }
                     
                     Identity identity = new Identity(merchantConfig,(X509Certificate) keyEntry.getCertificate(),keyEntry.getPrivateKey(),logger);
-                    localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+                    localKeyStoreHandler.addIdentityToKeyStore(identity);
                     identities.put(identity.getName(), identity);
                     continue;
                 }
                 Identity identity = new Identity(merchantConfig, (X509Certificate) merchantKeyStore.getCertificate(merchantKeyAlias),logger);
-                localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+                localKeyStoreHandler.addIdentityToKeyStore(identity);
                 identities.put(identity.getName(), identity);
             }
         } catch (KeyStoreException e) {
@@ -184,9 +186,9 @@ public class SecurityUtil {
         
         logger.log(Logger.LT_INFO, "Encrypting Signed doc ...");
         
-        WSSecHeader secHeader = new WSSecHeader();
+        WSSecHeader secHeader = new WSSecHeader(signedDoc);
         try {
-            secHeader.insertSecurityHeader(signedDoc);
+            secHeader.insertSecurityHeader();
         } catch (WSSecurityException e) {
             logger.log(Logger.LT_EXCEPTION, "Exception while adding docuemnt in soap securiy header for MLE");
             throw new SignException(e);
@@ -232,9 +234,9 @@ public class SecurityUtil {
         
         logger.log(Logger.LT_INFO, "Signing request...");
         
-        WSSecHeader secHeader = new WSSecHeader();
+        WSSecHeader secHeader = new WSSecHeader(workingDocument);
         try {
-            secHeader.insertSecurityHeader(workingDocument);
+            secHeader.insertSecurityHeader();
         } catch (WSSecurityException e) {
             logger.log(Logger.LT_EXCEPTION,
                        "Exception while signing XML document");
@@ -253,7 +255,7 @@ public class SecurityUtil {
         
         //Set which parts of the message to encrypt/sign.
         WSEncryptionPart msgBodyPart = new WSEncryptionPart(WSConstants.ELEM_BODY, WSConstants.URI_SOAP11_ENV, "");
-        sign.setParts(Collections.singletonList(msgBodyPart));
+        sign.getParts().addAll(Collections.singletonList(msgBodyPart));
         try {
             return sign.build(workingDocument, localKeyStoreHandler, secHeader);
         } catch (WSSecurityException e) {
@@ -307,13 +309,13 @@ public class SecurityUtil {
 
 					Identity identity = new Identity(merchantConfig, (X509Certificate) keyEntry.getCertificate(),
 							keyEntry.getPrivateKey(), logger);
-					localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+					localKeyStoreHandler.addIdentityToKeyStore(identity);
 					identities.put(identity.getName(), identity);
 					continue;
 				}
 				Identity identity = new Identity(merchantConfig,
 						(X509Certificate) keystore.getCertificate(merchantKeyAlias), logger);
-				localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+				localKeyStoreHandler.addIdentityToKeyStore(identity);
 				identities.put(identity.getName(), identity);
 			}
 		} catch (KeyStoreException e) {
@@ -352,11 +354,11 @@ public class SecurityUtil {
 
 				if (merchantConfig.getKeyAlias().equals(keystore.getCertificateAlias(cert[i]))) {
 					identity = new Identity(merchantConfig, (X509Certificate) cert[i], key, logger);
-					localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+					localKeyStoreHandler.addIdentityToKeyStore(identity);
 					identities.put(identity.getName(), identity);
 				} else {
 					identity = new Identity(merchantConfig, (X509Certificate) cert[i], logger);
-					localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+					localKeyStoreHandler.addIdentityToKeyStore(identity);
 					identities.put(identity.getName(), identity);
 				}
 			}
@@ -365,7 +367,7 @@ public class SecurityUtil {
 				throw new SignException("Missing Server Certificate ");
 			}
 			identity = new Identity(merchantConfig, (X509Certificate) serverCert, logger);
-			localKeyStoreHandler.addIdentityToKeyStore(identity, logger);
+			localKeyStoreHandler.addIdentityToKeyStore(identity);
 			identities.put(identity.getName(), identity);
 
 		}

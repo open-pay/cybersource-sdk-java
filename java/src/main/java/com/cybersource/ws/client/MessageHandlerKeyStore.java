@@ -1,24 +1,30 @@
 package com.cybersource.ws.client;
 
-import org.apache.ws.security.components.crypto.CredentialException;
-import org.apache.ws.security.components.crypto.Merlin;
-
 import java.io.IOException;
-import java.security.*;
+import java.security.KeyStoreException;
+import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Properties;
+
+import javax.security.auth.login.CredentialException;
+
+import org.apache.wss4j.common.crypto.Merlin;
+import org.apache.wss4j.common.ext.WSSecurityException;
 
 /**
  * Created by jeaton on 3/11/2016.
  */
 public class MessageHandlerKeyStore extends Merlin {
 
-	public MessageHandlerKeyStore() throws CredentialException, IOException {
-        super(null);
+    Logger logger = null;
+    
+	public MessageHandlerKeyStore(Logger logger) throws CredentialException, IOException, WSSecurityException {
+        super(null, null, null);
         properties = new Properties();
+        this.logger = logger;
     }
 
-    public void addIdentityToKeyStore(Identity id, Logger logger) throws SignEncryptException {
+    public void addIdentityToKeyStore(Identity id) throws SignEncryptException {
         if (id == null)
             return;
         X509Certificate certificate = id.getX509Cert();

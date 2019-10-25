@@ -109,7 +109,9 @@ public class SecurityUtilIT {
         StringReader sr = new StringReader( xmlString );
         wrappedDoc = builder.parse( new InputSource( sr ) );
         sr.close();
-        SecurityUtil.loadMerchantP12File(config,logger);
+        
+        SecurityUtil.logger = logger;
+        SecurityUtil.loadMerchantP12File(config); //logger
     }
     
     @Test
@@ -143,10 +145,10 @@ public class SecurityUtilIT {
     	Mockito.when(identity.getName()).thenReturn("MahenCertTest");
     	Mockito.when(identity.getKeyAlias()).thenReturn("MahenCertTest");
     	
-    	MessageHandlerKeyStore mhKeyStore= new MessageHandlerKeyStore();  
+    	MessageHandlerKeyStore mhKeyStore= new MessageHandlerKeyStore(logger);  
     	MessageHandlerKeyStore spyMhKeyStore = Mockito.spy(mhKeyStore);
     	Mockito.when(spyMhKeyStore.getKeyStore()).thenReturn(myKeystore);
-    	spyMhKeyStore.addIdentityToKeyStore(identity,logger);
+    	spyMhKeyStore.addIdentityToKeyStore(identity);
     	Mockito.verify(spyMhKeyStore).getKeyStore();
     }
 	
@@ -166,11 +168,11 @@ public class SecurityUtilIT {
     	Mockito.when(identity.getKeyAlias()).thenReturn("MahenCertTest");
         Mockito.when(identity.getPswd()).thenReturn("testPwd".toCharArray());
     	
-    	MessageHandlerKeyStore mhKeyStore= new MessageHandlerKeyStore();    	
+    	MessageHandlerKeyStore mhKeyStore= new MessageHandlerKeyStore(logger);    	
 
     	MessageHandlerKeyStore spyMhKeyStore = Mockito.spy(mhKeyStore);
     	Mockito.when(spyMhKeyStore.getKeyStore()).thenReturn(myKeystore);
-    	spyMhKeyStore.addIdentityToKeyStore(identity,logger);
+    	spyMhKeyStore.addIdentityToKeyStore(identity);
 
     	Mockito.verify(identity,times(1)).getKeyAlias();
         Mockito.verify(identity,times(1)).getPrivateKey();
@@ -188,8 +190,9 @@ public class SecurityUtilIT {
                 new MerchantConfig(merchantProperties, "merchant_id_optional_caching_test");  
         final MerchantConfig configCertificateCachingEnabledSpy = Mockito.spy(configCertificateCachingEnabled);  
   
-        SecurityUtil.loadMerchantP12File(configCertificateCachingEnabledSpy, logger);  
-        SecurityUtil.loadMerchantP12File(configCertificateCachingEnabledSpy, logger);  
+        SecurityUtil.logger = logger;
+        SecurityUtil.loadMerchantP12File(configCertificateCachingEnabledSpy); //logger  
+        SecurityUtil.loadMerchantP12File(configCertificateCachingEnabledSpy);  
   
         verify(configCertificateCachingEnabledSpy, times(3)).getKeyFile();  
   
@@ -199,8 +202,8 @@ public class SecurityUtilIT {
                 new MerchantConfig(merchantProperties, "merchant_id_optional_caching_test");  
         final MerchantConfig certificateCacheDisabledSpy = Mockito.spy(certificateCacheDisabled);  
   
-        SecurityUtil.loadMerchantP12File(certificateCacheDisabledSpy, logger);  
-        SecurityUtil.loadMerchantP12File(certificateCacheDisabledSpy, logger);  
+        SecurityUtil.loadMerchantP12File(certificateCacheDisabledSpy);  
+        SecurityUtil.loadMerchantP12File(certificateCacheDisabledSpy);  
   
         verify(certificateCacheDisabledSpy, times(4)).getKeyFile();  
     } 

@@ -19,25 +19,11 @@
 package com.cybersource.ws.client;
 
 
-import org.apache.ws.security.util.XMLUtils;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.Text;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.ParserConfigurationException;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
-import java.security.KeyStore;
-import java.security.cert.PKIXParameters;
-import java.security.cert.TrustAnchor;
 import java.text.MessageFormat;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 
@@ -279,7 +265,8 @@ public class Client {
         Document wrappedDoc = soapWrap(request, mc, builder,logger);
         logger.log(Logger.LT_INFO, "Client, End of soapWrap   ",true); 
         
-        Document resultDocument = null;
+        Document resultDocument = null;  
+        SignedAndEncryptedMessageHandler handler = SignedAndEncryptedMessageHandler.getInstance(mc,logger);
         
         // 3/7/2016 change to support encrypted messages as well as signed - jeaton
         if ( !mc.getUseSignAndEncrypted() ) {
@@ -294,7 +281,13 @@ public class Client {
             logger.log(Logger.LT_INFO, "Signing and encrypting request...");
             resultDocument = handler.handleMessageCreation(wrappedDoc,mc.getMerchantID(),mc.getKeyPassword());
             if (logSignedData) {
-                logger.log(Logger.LT_REQUEST,XMLUtils.PrettyDocumentToString(resultDocument));
+                try {
+                    logger.log(Logger.LT_REQUEST,XMLUtils.prettyDocumentToString(resultDocument));
+                } catch (TransformerException e) {
+                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
+                } catch (IOException e) {
+                    logger.log(Logger.LT_EXCEPTION, e.getMessage());
+                }
             }
         }
 

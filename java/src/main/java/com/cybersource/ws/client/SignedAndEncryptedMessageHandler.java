@@ -10,10 +10,9 @@ import java.security.Security;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.wss4j.common.WSEncryptionPart;
 import org.apache.wss4j.common.ext.WSSecurityException;
@@ -32,7 +31,8 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
 
     private static final String KEY_FILE_TYPE = "PKCS12";
     
-    public static List<Identity> identities = new ArrayList<Identity>();
+    //public static List<Identity> identities = new ArrayList<Identity>()
+    private static ConcurrentHashMap<String, Identity> identities = new ConcurrentHashMap<String, Identity>();
     
 	private static String currentMerchantId = null;
 	
@@ -52,8 +52,8 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
         super(logger);
          // load keystore from disk p12 file (not keystore)
         loadMerchantP12File(merchantConfig, logger);
-        for(int pos=0;pos<identities.size();pos++) {
-            localKeyStoreHandler.addIdentityToKeyStore(identities.get(pos));
+        for (String key : identities.keySet()) {
+            localKeyStoreHandler.addIdentityToKeyStore(identities.get(key));
         }
     }
 
@@ -70,13 +70,13 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
     * @param logger - logger instance
     * @throws SignException - Signature exception
     */
-   private static void loadMerchantP12File(MerchantConfig merchantConfig, Logger logger) throws SignException {
-       // Load the KeyStore and get the signing key and certificate do this once only
-       // This change is made based on the assumptions that at point of time , a merchant will have only one P12 Key
-       if(  !merchantConfig.getMerchantID().equals(currentMerchantId)){
-       	readAndStoreCertificateAndPrivateKey( merchantConfig,  logger);
-       }
-   }
+    private static void loadMerchantP12File(MerchantConfig merchantConfig, Logger logger) throws SignException {
+        // Load the KeyStore and get the signing key and certificate do this once only
+        // This change is made based on the assumptions that at point of time , a merchant will have only one P12 Key
+        if (!merchantConfig.getMerchantID().equals(currentMerchantId)) {
+            readAndStoreCertificateAndPrivateKey(merchantConfig, logger);
+        }
+    }
    
    /**
 	 *Reads the Certificate or Public key  and Private from the P12 key .
@@ -96,7 +96,6 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
             throw new SignException(e);
         }
 		
-        
         File tempFile = null;
         FileInputStream stream = null;
         try {
@@ -107,6 +106,7 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
                 }else{
                     stream = new FileInputStream(tempFile);
                     merchantKeyStore.load(stream, merchantConfig.getKeyPassword().toCharArray());
+                    merchantConfig.getLastModifiedFiles().put(merchantConfig.getKeyFilename(), tempFile.lastModified());
                 }
             } else {
                 merchantKeyStore.load(new FileInputStream(merchantConfig.getKeyFile()), merchantConfig.getKeyPassword().toCharArray());
@@ -158,10 +158,12 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
                         logger.log(Logger.LT_EXCEPTION, "Exception while obtaining private key from KeyStore with alias, '" + merchantConfig.getKeyAlias() + "'");
                         throw new SignException(e);
                     }
-            		identities.add(new Identity(merchantConfig,(X509Certificate) keyEntry.getCertificate(),keyEntry.getPrivateKey()));
+            		Identity identity = new Identity(merchantConfig,(X509Certificate) keyEntry.getCertificate(),keyEntry.getPrivateKey(), logger);
+            		identities.put(identity.getName(), identity);
             		continue;
             	}
-				identities.add(new Identity(merchantConfig, (X509Certificate) merchantKeyStore.getCertificate(merchantKeyAlias)));
+				Identity identity = new Identity(merchantConfig, (X509Certificate) merchantKeyStore.getCertificate(merchantKeyAlias), logger); 
+				identities.put(identity.getName(), identity);
             }
             
             if (identities == null || identities.isEmpty()) {
@@ -236,8 +238,8 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
 	        }
     	}
 		WSSecSignature sign = new WSSecSignature();
-		sign.setUserInfo(senderAlias, password);
-	    sign.setDigestAlgo(DIGEST_ALGORITHM);
+		sign.setUserInfo(identities.get(senderAlias).getKeyAlias(), password);
+		sign.setDigestAlgo(DIGEST_ALGORITHM);
 	    sign.setSignatureAlgorithm(SIGNATURE_ALGORITHM);
 	    sign.setKeyIdentifierType(WSConstants.BST_DIRECT_REFERENCE);
 	    sign.setUseSingleCertificate(true);
@@ -248,7 +250,7 @@ public class SignedAndEncryptedMessageHandler extends BaseMessageHandler {
 		try {
 	        return sign.build(workingDocument, localKeyStoreHandler, secHeader);
 		} catch (WSSecurityException e) {
-	        logger.log(Logger.LT_EXCEPTION, "Failed while signing requeest for , '" + senderAlias + "'");
+	        logger.log(Logger.LT_EXCEPTION, "Failed while signing request for , '" + senderAlias + "'");
 	        throw new SignException(e.getMessage());
 	   }
 	}
